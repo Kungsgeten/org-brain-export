@@ -1,0 +1,27 @@
+#+TITLE:org-brain-export
+
+Experimental package dealing with exporting [[https://github.com/kungsgeten/org-brain][org-brain]] to other formats. VERY EARLY development.
+
+* Setup and requirements
+
+Add =org-brain-export.el= to your load-path and require it. You must also have the following packages installed (available from MELPA):
+
+- =a=
+- =xmlgen=
+- =org-brain=
+
+* Export targets
+
+At the moment there's some support for HTML export and GraphViz =dot= export. It is only possible to export the whole =org-brain= at the moment. Use =M-x org-brain-export-html= or =M-x org-brain-export-dot=. The files will be saved in a folder named =export= in your =org-brain-path= by default.
+
+* Development/hacking
+
+The function =org-brain-export-generate-data= takes an =org-brain= entry and returns an alist. That alist contains much of the relevant information you'll need regarding the entry. At the moment resources aren't included.
+
+* Roadmap/wishlist
+
+- Export a part of the brain
+  - Idea: Use =org-brain-visualize= in mind-map view.
+- CSS and maybe JS for HTML export.
+- Edge annotations in =dot= export.
+- More testing
