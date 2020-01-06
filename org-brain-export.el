@@ -158,7 +158,7 @@ Saved at `org-brain-export-dot-file'."
 (defun org-brain-export-html ()
   "Export your `org-brain' to HTML."
   (interactive)
-  (make-directory (file-name-directory org-brain-export-httml-file) t)
+  (make-directory (file-name-directory org-brain-export-html-file) t)
   (message "Starting HTML export...")
   (let ((data-rep (mapcar #'org-brain-export-generate-data
                           (append (org-brain-files t)
