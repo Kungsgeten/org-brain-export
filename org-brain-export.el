@@ -16,6 +16,7 @@
 ;;; Code:
 
 (require 'org-brain)
+(require 'dash)
 (require 'a)
 (require 'xmlgen)
 
@@ -66,44 +67,82 @@ Represented as an alist."
           (org-brain-export--dot-id ob-data)
           (alist-get :title ob-data)))
 
-(defun org-brain-export--dot-children (ob-data)
-  "Get children relations in OB-DATA as a dot string."
+(defun org-brain-export--dot-children (ob-data &optional pool)
+  "Get children relations in OB-DATA as a dot string.
+Only get children who's :id is a member of POOL.
+If POOL is nil or omitted, get all children."
   (mapconcat
    (lambda (child)
-     (format "%s -> %s;\n"
-             (org-brain-export--dot-id ob-data)
-             (org-brain-export--dot-id child)))
+     (if (and pool (member (alist-get :id child) pool))
+         (format "%s -> %s;\n"
+                 (org-brain-export--dot-id ob-data)
+                 (org-brain-export--dot-id child))
+       ""))
    (alist-get :children ob-data)
    ""))
 
-(defun org-brain-export--dot-friends (ob-data)
-  "Get friend relations in OB-DATA as a dot string."
+(defun org-brain-export--dot-friends (ob-data &optional pool)
+  "Get friend relations in OB-DATA as a dot string.
+Only get friends who's :id is a member of POOL.
+If POOL is nil or omitted, get all friends."
   (mapconcat
-   (lambda (child)
-     (format "%s -> %s [dir=none color=\"blue\"];\n"
-             (org-brain-export--dot-id ob-data)
-             (org-brain-export--dot-id child)))
+   (lambda (friend)
+     (if (and pool (member (alist-get :id friend) pool))
+         (format "%s -> %s [dir=none color=\"blue\"];\n"
+                 (org-brain-export--dot-id ob-data)
+                 (org-brain-export--dot-id friend))
+       ""))
    (alist-get :friends ob-data)
    ""))
 
-(defun org-brain-export-dot ()
-  "Export your `org-brain' to Graphviz dot format.
-Saved at `org-brain-export-dot-file'."
-  (interactive)
-  (make-directory (file-name-directory org-brain-export-dot-file) t)
-  (message "Starting dot export...")
-  (let ((data (mapcar #'org-brain-export-generate-data
-                      (append (org-brain-files t)
-                              (org-brain-headline-entries)))))
-    (with-temp-file org-brain-export-dot-file
+(defun org-brain-export-dot-save (entries file)
+  "Export ENTRIES to GraphViz dot FILE.
+Removes duplicates from ENTRIES."
+  (make-directory (file-name-directory file) t)
+  (let* ((data (mapcar #'org-brain-export-generate-data (-distinct entries)))
+         (pool (mapcar (lambda (x) (alist-get :id x)) data)))
+    (with-temp-file file
       (insert "digraph G {\nconcentrate=true;\n")
-      (mapc (lambda (x) (insert (org-brain-export--dot-node-def x)))
-            data)
-      (mapc (lambda (x) (insert (org-brain-export--dot-children x)))
-            data)
-      (mapc (lambda (x) (insert (org-brain-export--dot-friends x)))
-            data)
-      (insert "}")))
+      (dolist (ob-data data)
+        (insert (org-brain-export--dot-node-def ob-data)
+                (org-brain-export--dot-children ob-data pool)
+                (org-brain-export--dot-friends ob-data pool)))
+      (insert "}"))))
+
+(defun org-brain-export-dot (file)
+  "Export your `org-brain' to Graphviz dot FILE."
+  (interactive "F")
+  (message "Starting dot export...")
+  (org-brain-export-dot-save (append (org-brain-files t)
+                                     (org-brain-headline-entries))
+                             file)
+  (message "Dot export finished!"))
+
+(defun org-brain-export-dot-entry (entry file &optional parent-max-level children-max-level exclude-siblings)
+  "Export `org-brain' ENTRY to GraphViz dot FILE.
+If run interactively, get ENTRY from context and prompt for FILE.
+PARENT-MAX-LEVEL and CHILDREN-MAX-LEVEL determines how many
+levels (grand)parents/children that'll be included.
+If EXCLUDE-SIBLINGS is non-nil, the siblings of ENTRY will not be included.
+
+If run interactively in `org-brain-visualize', PARENT-MAX-LEVEL
+and CHILDREN-MAX-LEVEL respects the ancestors and decendants of
+the current entry in `org-brain-visualize-mind-map' mode."
+  (interactive (list (org-brain-entry-at-pt)
+                     (read-file-name "Output file: ")
+                     org-brain-mind-map-parent-level
+                     org-brain-mind-map-child-level))
+  (message "Starting dot export...")
+  (let ((entries (append (list entry) (org-brain-friends entry))))
+    (org-brain-recursive-parents entry (or parent-max-level 1)
+                                 (lambda (x) (push x entries)))
+    (org-brain-recursive-children entry (or children-max-level 2)
+                                  (lambda (x) (push x entries)))
+    (unless exclude-siblings
+      (dolist (parent (org-brain-siblings entry))
+        (dolist (sibling (cdr parent))
+          (push sibling entries))))
+    (org-brain-export-dot-save entries file))
   (message "Dot export finished!"))
 
 ;;; HTML
