@@ -50,6 +50,54 @@ Represented as an alist."
                       (org-brain-export--relation-data entry friend))
                     (org-brain-friends entry))))
 
+;;; Org tags
+(defun org-brain-export--orgtag-wash (string)
+  "Wash STRING to a valid org tag string."
+  (replace-regexp-in-string "[^[:alnum:]_@#%]" "" (or string "")))
+
+(defun org-brain-export--child-orgtags (ob-data &optional pool)
+  "Get children relations in OB-DATA as a child org tags string.
+Only get children who's :id is a member of POOL.
+If POOL is nil or omitted, get all children."
+  (let ((child-orgtags
+         (mapcar
+          (lambda (child)
+            (if (and pool (member (alist-get :id child) pool))
+                (org-brain-export--orgtag-wash (alist-get :title child))
+              ""))
+          (alist-get :children ob-data))))
+    (concat
+     (if (> (length child-orgtags) 0)
+         " : "
+       "")
+     (mapconcat #'identity child-orgtags " "))))
+
+(defun org-brain-export-orgtags-save (entries file)
+  "Export ENTRIES to a org-mode FILE with tags.
+Removes duplicates from ENTRIES."
+  (make-directory (file-name-directory file) t)
+  (let* ((data (cdr (mapcar #'org-brain-export-generate-data (-distinct entries))))
+         (pool (mapcar (lambda (x) (alist-get :id x)) data))
+         orphan-orgtags)
+    (with-temp-file file
+      (dolist (ob-data data)
+        (let ((orgtags (org-brain-export--orgtag-wash (alist-get :title ob-data)))
+              (child-orgtags (org-brain-export--child-orgtags ob-data pool)))
+          (if (equal child-orgtags "")
+              (push orgtags orphan-orgtags)
+            (insert (format "#+TAGS: [ %s%s ]\n" orgtags child-orgtags)))))
+      (insert (format "#+TAGS: %s" (mapconcat #'identity orphan-orgtags " "))))))
+
+(defun org-brain-export-orgtags (file)
+  "Export your `org-brain' to org-mode FILE with tags."
+  (interactive "F")
+  (message "Starting org tags export...")
+  (org-brain-export-orgtags-save
+   (append (org-brain-files t)
+           (org-brain-headline-entries))
+   file)
+  (message "Org tags export finished!"))
+
 ;;; GraphViz
 
 (defvar org-brain-export-dot-file (expand-file-name "brain.dot" org-brain-export-directory)
